@@ -11,6 +11,12 @@ requires-python = ">=3.8"
 authors = [
     { name = "Sebastián Ramírez", email = "tiangolo@gmail.com" },
 ]
+
+[project.dependencies]
+fastapi = "*"
+uvicorn = "*"
+PyMuPDF = "*"
+
 classifiers = [
     "Intended Audience :: Information Technology",
     "Intended Audience :: System Administrators",
