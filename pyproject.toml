@@ -12,10 +12,11 @@ authors = [
     { name = "Sebastián Ramírez", email = "tiangolo@gmail.com" },
 ]
 
-[project.dependencies]
-fastapi = "*"
-uvicorn = "*"
-PyMuPDF = "*"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "PyMuPDF"
+]
 
 classifiers = [
     "Intended Audience :: Information Technology",
