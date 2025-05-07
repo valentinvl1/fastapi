@@ -78,6 +78,7 @@ async def extract_images_from_pdf(file: UploadFile = File(...)):
     }
 
 
+
 @app.post("/extract-all")
 async def extract_pdf_text_and_images(file: UploadFile = File(...)):
     if file.content_type != "application/pdf":
@@ -89,36 +90,42 @@ async def extract_pdf_text_and_images(file: UploadFile = File(...)):
     except Exception:
         raise HTTPException(status_code=400, detail="Impossible de lire le fichier PDF.")
 
-    image_counter = 1
-    images = []          # ↔ tableau global d’images
-    pages = []           # ↔ texte page par page
+    image_counter, images, pages = 1, [], []
 
     for page_index, page in enumerate(doc, start=1):
-        page_text = []
-        blocks = page.get_text("dict")["blocks"]
+        page_text, blocks = [], page.get_text("dict")["blocks"]
 
         for block in blocks:
-            if block["type"] == 0:          # bloc texte
+            if block["type"] == 0:                      # -- texte
                 for line in block["lines"]:
                     for span in line["spans"]:
                         page_text.append(span["text"])
-            elif block["type"] == 1:        # bloc image
-                xref = block["xref"]        # ★ la vraie clé
-                try:
-                    img_info   = doc.extract_image(xref)
-                    image_data = img_info["image"]
-                    image_id   = f"image{image_counter}"
-                    images.append({
-                        "id":  image_id,
-                        "ext": img_info.get("ext", "png"),
-                        "base64": base64.b64encode(image_data).decode("utf-8")
-                    })
-                    page_text.append(f"{{{{{image_id}}}}}")   # insère {{imageX}}
-                    image_counter += 1
-                except Exception as e:
-                    print(f"[Page {page_index}] Erreur image : {e}")
 
-        # On stocke le texte complet (avec placeholders) pour cette page
+            elif block["type"] == 1:                    # -- image
+                xref = block.get("xref", 0)
+                if not xref:                            # inline / dessin → on ignore
+                    page_text.append("{{image-inline}}")
+                    continue
+
+                try:
+                    img_info = doc.extract_image(xref)
+                    if not img_info or "image" not in img_info:
+                        raise ValueError("Image non extractible")
+
+                    image_id = f"image{image_counter}"
+                    images.append({
+                        "id": image_id,
+                        "ext": img_info.get("ext", "png"),
+                        "base64": base64.b64encode(img_info["image"]).decode()
+                    })
+                    page_text.append(f"{{{{{image_id}}}}}")
+                    image_counter += 1
+
+                except Exception as e:
+                    logging.warning("[Page %s] Image skip: %s", page_index, e)
+                    # On garde quand même un placeholder générique
+                    page_text.append("{{image-error}}")
+
         pages.append({
             "page": page_index,
             "text": " ".join(page_text).strip()
@@ -127,6 +134,6 @@ async def extract_pdf_text_and_images(file: UploadFile = File(...)):
     return {
         "filename": file.filename,
         "page_count": len(doc),
-        "pages": pages,      # ← chaque entrée contient son texte + placeholders
-        "images": images     # ← mapping global id → base64 + ext
+        "pages": pages,
+        "images": images
     }
